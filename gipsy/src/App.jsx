@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, Component } from 'react'
 import { useWallet } from '@aptos-labs/wallet-adapter-react'
 import WalletProvider from './WalletProvider.jsx'
 import { GIPSY_LOGO } from './logo.js'
@@ -67,7 +67,8 @@ function formatBytes(bytes) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
 function copyToClipboard(text) { navigator.clipboard?.writeText(text).catch(() => {}) }
-function shortAddr(addr) { return addr ? addr.slice(0, 6) + '…' + addr.slice(-4) : '' }
+function toAddrStr(addr) { return addr ? (typeof addr === 'string' ? addr : addr.toString?.() ?? String(addr)) : '' }
+function shortAddr(addr) { const s = toAddrStr(addr); return s ? s.slice(0, 6) + '…' + s.slice(-4) : '' }
 
 // ============================================================
 // Atoms
@@ -127,7 +128,7 @@ function WalletButton() {
         {showMenu && (
           <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 8px)', background: C.surface, border: `1px solid ${C.green}22`, borderRadius: 10, padding: 12, minWidth: 240, zIndex: 200, boxShadow: '0 8px 32px #00000088' }}>
             <div style={{ fontSize: 9, color: C.muted, fontFamily: mono, marginBottom: 6, letterSpacing: '0.1em' }}>CONNECTED — {wallet?.name?.toUpperCase()}</div>
-            <div style={{ fontSize: 11, color: C.cyan, fontFamily: mono, wordBreak: 'break-all', marginBottom: 4 }}>{account.address}</div>
+            <div style={{ fontSize: 11, color: C.cyan, fontFamily: mono, wordBreak: 'break-all', marginBottom: 4 }}>{toAddrStr(account.address)}</div>
             <div style={{ fontSize: 10, color: isTestnet ? C.green : C.red, fontFamily: mono, marginBottom: 12 }}>
               {isTestnet ? '✓' : '⚠'} Network: {network?.name ?? '—'}
             </div>
@@ -445,7 +446,7 @@ function Dashboard() {
         <div style={{ background: `linear-gradient(90deg, ${C.green}0a, ${C.green}05, ${C.green}0a)`, borderBottom: `1px solid ${C.green}18`, padding: '8px 32px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
           <GlowDot size={6} />
           <span style={{ fontFamily: mono, fontSize: 10, color: C.green }}>
-            Wallet connected · {account?.address} · {network?.name}
+            Wallet connected · {toAddrStr(account?.address)} · {network?.name}
           </span>
         </div>
       )}
@@ -532,12 +533,37 @@ function Dashboard() {
 }
 
 // ============================================================
+// Error Boundary — prevents full white screen on wallet errors
+// ============================================================
+class ErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { hasError: false, error: null } }
+  static getDerivedStateFromError(error) { return { hasError: true, error } }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ minHeight: '100vh', background: '#060d0a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16, fontFamily: "'Space Mono', monospace", color: '#ff6b6b', padding: 32 }}>
+          <div style={{ fontSize: 32 }}>⚠</div>
+          <div style={{ fontSize: 14 }}>Wallet adapter error</div>
+          <div style={{ fontSize: 11, color: '#ffffff33', maxWidth: 400, textAlign: 'center' }}>{this.state.error?.message}</div>
+          <button onClick={() => window.location.reload()} style={{ marginTop: 8, fontFamily: "'Space Mono', monospace", fontSize: 11, color: '#00ff88', background: '#00ff8815', border: '1px solid #00ff8844', borderRadius: 6, padding: '7px 16px', cursor: 'pointer' }}>
+            Reload
+          </button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
+// ============================================================
 // Root App — wraps with WalletProvider
 // ============================================================
 export default function App() {
   return (
-    <WalletProvider>
-      <Dashboard />
-    </WalletProvider>
+    <ErrorBoundary>
+      <WalletProvider>
+        <Dashboard />
+      </WalletProvider>
+    </ErrorBoundary>
   )
 }
